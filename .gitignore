@@ -1,0 +1,15 @@
+node_modules/
+*.csv
+checkpoint-*.json
+checkpoint-*.jsonl
+checkpoint-*.lock
+*.bak-*
+rollback-*.json
+errors-*.csv
+report-*.csv
+.image-cache/
+.DS_Store
+npm-debug.log*
+
+# Local tooling and editor directories at repo root
+/.*/
