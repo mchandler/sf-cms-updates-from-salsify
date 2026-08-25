@@ -17,6 +17,9 @@ authorized:
 sf org login web --alias <alias>
 ```
 
+The org must have the `CMS_Media_Source__c` object, which records the source URL
+of each image the tool uploads so it is never uploaded twice.
+
 ## Usage
 
 ```

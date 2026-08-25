@@ -36,6 +36,8 @@ const { formatDuration, formatBytes } = require('./lib/progress');
 const { exitAfterFlush } = require('./lib/exit');
 const { ask } = require('./lib/prompt');
 
+const mediaSource = require('./lib/media-source');
+
 const { runUpload } = require('./lib/upload');
 const { runLink } = require('./lib/link');
 const { runRetire } = require('./lib/retire');
@@ -242,6 +244,13 @@ async function main() {
     if (!cfg.dryRun) {
       checkpoint.acquireLock(cfg);
       locked = true;
+    }
+
+    // Checked before any work starts. `delete` never resolves a URL, so it has
+    // no use for the object and is not held to it.
+    if (cfg.action !== 'delete') {
+      await mediaSource.assertAvailable(client);
+      console.log(`${mediaSource.OBJECT} is present and writable`);
     }
 
     const groupIdByName = await fetchMediaGroups(client, entity.groups, cfg.groups);

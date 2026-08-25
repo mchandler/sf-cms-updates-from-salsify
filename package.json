@@ -4,7 +4,8 @@
   "description": "Swaps, adds and removes product and category images from a CSV of identifier/URL pairs, uploading each source image into the CMS as binary media.",
   "main": "update-media.js",
   "scripts": {
-    "start": "node update-media.js"
+    "start": "node update-media.js",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=18"
