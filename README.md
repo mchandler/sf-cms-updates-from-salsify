@@ -40,8 +40,8 @@ ABC123,https://example.com/images/one.jpg
 ABC124,https://example.com/images/one.jpg
 ```
 
-`identifier` is the SKU for `--entity product`, and the category external id for
-`--entity category`. Column headings are matched loosely.
+`identifier` is the product code for `--entity product`, and the category
+external id for `--entity category`. Column headings are matched loosely.
 
 An image used by several identifiers is downloaded and uploaded **once**, then
 linked to all of them. `--action delete` ignores the `url` column.
