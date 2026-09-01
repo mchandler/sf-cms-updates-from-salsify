@@ -53,6 +53,13 @@ removes the old links, adds the new ones, and unpublishes the replaced content.
 The record is never left without an image part-way through.
 
 **`add`** uploads, publishes and links the new image without removing anything.
+For products it targets `productDetailImage` only — appending a second image
+to the list tile would change what the storefront grid shows — so pass
+`--groups` to target anything else. It is also the one action where an
+identifier may appear on several rows: each one adds another image, in file
+order. `swap` and `delete` still refuse a repeated identifier, since there a
+second url is a question about which single image the record should end up
+with.
 
 **`delete`** removes the image links and unpublishes the content behind them.
 

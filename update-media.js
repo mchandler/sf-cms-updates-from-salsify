@@ -26,8 +26,8 @@ if (typeof fetch !== 'function') {
 const { resolveConfig } = require('./lib/args');
 const { createSession } = require('./lib/auth');
 const { createClient } = require('./lib/http');
-const { resolveEntity, restrictGroups } = require('./lib/entities');
-const { loadCsv } = require('./lib/csv-load');
+const { resolveEntity, restrictGroups, defaultGroupsFor } = require('./lib/entities');
+const { loadCsv, rowKey } = require('./lib/csv-load');
 const { fetchMediaGroups, fetchParents, fetchOrgId } = require('./lib/lookups');
 const checkpoint = require('./lib/checkpoint');
 const { createErrorLog } = require('./lib/error-log');
@@ -106,17 +106,17 @@ function buildTargets({ cfg, entity, rows, parents, state, errorLog }) {
   const seen = new Set();
 
   const note = (row, code, message) => {
-    skipped.set(row.identifier, message);
+    skipped.set(rowKey(row.identifier, row.url), message);
     errorLog.log({ row: row.rowNum, identifier: row.identifier, sourceUrl: row.url, errorCode: code, errorMessage: message });
   };
 
   for (const row of rows) {
     if (row.skipReason) {
-      skipped.set(row.identifier, row.skipReason);
+      skipped.set(rowKey(row.identifier, row.url), row.skipReason);
       errorLog.log({ row: row.rowNum, identifier: row.identifier, sourceUrl: row.url, errorCode: 'CSV_SKIP', errorMessage: row.skipReason });
       continue;
     }
-    if (seen.has(row.identifier)) continue;
+    if (seen.has(rowKey(row.identifier, row.url))) continue;
 
     if (parents.ambiguous.has(row.identifier)) {
       note(row, 'AMBIGUOUS_IDENTIFIER', `More than one ${entity.sobject} has ${entity.matchField} = '${row.identifier}'`);
@@ -142,7 +142,7 @@ function buildTargets({ cfg, entity, rows, parents, state, errorLog }) {
       contentId = image.contentId;
     }
 
-    seen.add(row.identifier);
+    seen.add(rowKey(row.identifier, row.url));
     targets.push({ identifier: row.identifier, rowNum: row.rowNum, parentId, contentId, sourceUrl: row.url });
   }
 
@@ -181,8 +181,9 @@ async function main() {
   const cfg = resolveConfig(process.argv.slice(2));
 
   let entity;
+  const defaultedGroups = cfg.groupNames ? null : defaultGroupsFor(cfg.entity, cfg.action);
   try {
-    entity = restrictGroups(resolveEntity(cfg.entity), cfg.groupNames);
+    entity = restrictGroups(resolveEntity(cfg.entity), cfg.groupNames || defaultedGroups);
   } catch (e) {
     console.error(`${e.message}\n`);
     return exitAfterFlush(1);
@@ -193,6 +194,9 @@ async function main() {
   console.log(`  Workspace:  ${cfg.workspaceId}${cfg.folderId ? ` (folder ${cfg.folderId})` : ''}`);
   console.log(`  Action:     ${cfg.action}`);
   console.log(`  Entity:     ${entity.name} -> ${entity.object} [${entity.groups.join(', ')}]`);
+  if (defaultedGroups) {
+    console.log(`              default for --action ${cfg.action}; pass --groups to target others`);
+  }
   console.log(`  Identifier: ${entity.sobject}.${entity.matchField}`);
   console.log(`  CSV:        ${cfg.csvPath}`);
   console.log(`  Pace ${cfg.paceMs}ms | batch ${cfg.batchSize} | download x${cfg.downloadConcurrency} | upload x${cfg.uploadConcurrency}${cfg.force ? ' | FORCE' : ''}`);
@@ -202,7 +206,7 @@ async function main() {
 
   let csv;
   try {
-    csv = await loadCsv(cfg.csvPath, { requireUrl: cfg.requireUrl });
+    csv = await loadCsv(cfg.csvPath, { requireUrl: cfg.requireUrl, allowRepeatIdentifier: cfg.action === 'add' });
   } catch (e) {
     console.error(`Could not read the CSV: ${e.message}\n`);
     return exitAfterFlush(2);
@@ -261,7 +265,11 @@ async function main() {
     // large file can be worked through a slice at a time. Rows are in file
     // order, so the slice is the same on every run.
     if (cfg.maxRows) {
-      const keep = new Set(rows.filter((r) => !r.skipReason).map((r) => r.identifier).slice(0, cfg.maxRows));
+      const keep = new Set();
+      for (const r of rows) {
+        if (r.skipReason || keep.size >= cfg.maxRows) continue;
+        keep.add(r.identifier);
+      }
       rows = rows.filter((r) => r.skipReason || keep.has(r.identifier));
       console.log(`--max-rows ${cfg.maxRows}: processing ${keep.size} identifier(s) this run`);
     }
@@ -304,7 +312,7 @@ async function main() {
     report = createReport(cfg.org, cfg.action);
     writeRunReport(report, {
       cfg, entity, state, rows: csv.rows, skipped,
-      targetsByIdentifier: new Map(targets.map((t) => [t.identifier, t])),
+      targetsByRow: new Map(targets.map((t) => [rowKey(t.identifier, t.sourceUrl), t])),
     });
     await report.close();
     await errorLog.close();
