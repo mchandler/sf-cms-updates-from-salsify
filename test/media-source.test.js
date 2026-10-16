@@ -128,3 +128,14 @@ test('assertAvailable passes on a healthy org', async () => {
   const { client } = createFakeOrg();
   assert.equal(await mediaSource.assertAvailable(client), true);
 });
+
+test('long URLs split the lookup by encoded length, not just by count', async () => {
+  const urls = Array.from({ length: 150 }, (_, i) => `https://images.salsify.com/image/upload/${i}-${'x'.repeat(200)}.jpg`);
+  const paths = [];
+  const client = { get: async (p) => { paths.push(p); return { records: [] }; } };
+  await mediaSource.fetchByUrls(client, urls, 0);
+  assert.ok(paths.length > 1, 'a single 150-URL query would pass the request-line limit');
+  for (const p of paths) assert.ok(p.length <= 12000, `request path of ${p.length} characters`);
+  const sent = paths.flatMap((p) => decodeURIComponent(p.split('?q=')[1]).match(/'[^']*'/g));
+  assert.equal(sent.length, urls.length, 'every URL is queried exactly once');
+});
